@@ -2,8 +2,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
-import java.nio.channels.spi.SelectorProvider;
-import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -12,7 +10,6 @@ public class Server {
     public static final String ADRESS = "192.168.31.133";
     public static final int PORT = 46555;
     final ServerSocketChannel serverSocketChannel;
-    Selector chSelector = Selector.open();
 
 
     public Server() throws IOException {
@@ -65,9 +62,7 @@ public class Server {
     private void read(Selector selector, SelectionKey key, ByteBuffer buffer) throws IOException {
         ((SocketChannel) key.channel()).read(buffer);
         buffer.flip();
-        Iterator<SelectionKey> sKeysInner = selector.keys().iterator();
-        while (sKeysInner.hasNext()) {
-            SelectionKey innerKey = sKeysInner.next();
+        for (SelectionKey innerKey : selector.keys()) {
             if (innerKey.channel().getClass().getSimpleName().startsWith("SocketChannelImpl") &&
                     innerKey != key) {
                 ((SocketChannel) innerKey.channel()).write(buffer);
