@@ -7,7 +7,7 @@ import java.util.Scanner;
 
 public class Client {
 
-    public static final String ADRESS = "127.0.0.1";
+    public static final String ADRESS = "192.168.31.133";
     public static final int PORT = 46555;
     final SocketChannel socketChannel;
     private String name;
@@ -21,8 +21,8 @@ public class Client {
         try {
             Scanner scanner = new Scanner(System.in);
             ByteBuffer buffer = ByteBuffer.allocate(2 << 10);
-     //          System.out.println("Enter message:");
-     //          String input = scanner.nextLine();
+  //             System.out.println("Enter message:");
+  //             String input = scanner.nextLine();
             socketChannel.write(ByteBuffer.wrap(Thread.currentThread().getName().getBytes(StandardCharsets.UTF_8)));
             while (true) {
                 int count = socketChannel.read(buffer);

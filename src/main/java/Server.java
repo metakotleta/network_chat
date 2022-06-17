@@ -1,12 +1,7 @@
-import sun.nio.ch.SelectionKeyImpl;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
+import java.nio.channels.*;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -14,62 +9,70 @@ import java.util.Set;
 
 public class Server {
 
-    public static final String ADRESS = "127.0.0.1";
+    public static final String ADRESS = "192.168.31.133";
     public static final int PORT = 46555;
     final ServerSocketChannel serverSocketChannel;
+    Selector chSelector = Selector.open();
+
 
     public Server() throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.bind(new InetSocketAddress(ADRESS, PORT));
     }
 
-    public void start() {
+    public void connect() {
         try {
             Selector selector = Selector.open();
+            serverSocketChannel.configureBlocking(false);
+            serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
             while (true) {
-                serverSocketChannel.configureBlocking(false);
-                serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
                 int count = selector.select();
-                if (count != 0) {
-                    System.out.println(count);
-                    Set keys = selector.selectedKeys();
-                    Iterator iter = keys.iterator();
-                    while (iter.hasNext()) {
-                        SelectionKey key = (SelectionKey) iter.next();
-                        if(key.isAcceptable()) {
-                            System.out.println("acc");
-                            SocketChannel channel = serverSocketChannel.accept();
-                            ByteBuffer buffer = ByteBuffer.allocate(2 << 11);
+                if (count == 0)
+                    continue;
 
-                            while (channel.isConnected()) {
-                                int count2 = channel.read(buffer);
-                                if (count2 == -1) break;
+                Set<SelectionKey> sKeys = selector.selectedKeys();
+                Iterator<SelectionKey> keysIter = sKeys.iterator();
+                ByteBuffer buffer = ByteBuffer.allocate(1024);
 
-                                String msg = new String(buffer.array(), 0, count2, StandardCharsets.UTF_8);
-                                channel.write((ByteBuffer) buffer.flip());
-
-                                buffer.clear();
-                            }
-                        } else if(key.isConnectable()) {
-                            System.out.println("conn");
-                        } else if(key.isReadable()) {
-                            System.out.println("read");
-
-                        } else if(key.isWritable()) {
-                            System.out.println("wr");
-                        }
+                while (keysIter.hasNext()) {
+                    SelectionKey key = keysIter.next();
+                    if (key.isAcceptable()) {
+                        accept(selector);
+                        keysIter.remove();
                     }
-                }
-
-
-
-
-
-
-//
+                    else if (key.isReadable()) {
+                        read(selector, key, buffer);
+                        keysIter.remove();
+                    } else {
+                        System.out.println("ELSE");
+                    }
+               }
             }
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private void accept(Selector selector) throws IOException {
+        SocketChannel channel = serverSocketChannel.accept();
+        System.out.println("ACCEPTED");
+        if (channel != null) {
+            channel.configureBlocking(false);
+            channel.register(selector, SelectionKey.OP_READ);
+        }
+    }
+
+    private void read(Selector selector, SelectionKey key, ByteBuffer buffer) throws IOException {
+        ((SocketChannel) key.channel()).read(buffer);
+        buffer.flip();
+        Iterator<SelectionKey> sKeysInner = selector.keys().iterator();
+        while (sKeysInner.hasNext()) {
+            SelectionKey innerKey = sKeysInner.next();
+            if (innerKey.channel().getClass().getSimpleName().startsWith("SocketChannelImpl") &&
+                    innerKey != key) {
+                ((SocketChannel) innerKey.channel()).write(buffer);
+                buffer.clear();
+            }
         }
     }
 }
