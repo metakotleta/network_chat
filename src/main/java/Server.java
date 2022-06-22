@@ -1,13 +1,17 @@
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
-import java.nio.channels.*;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Set;
 
 public class Server {
 
-    public static final String ADRESS = "192.168.31.133";
+    public static final String ADRESS = "192.168.31.68";
     public static final int PORT = 46555;
     final ServerSocketChannel serverSocketChannel;
 
@@ -36,14 +40,11 @@ public class Server {
                     if (key.isAcceptable()) {
                         accept(selector);
                         keysIter.remove();
-                    }
-                    else if (key.isReadable()) {
+                    } else if (key.isReadable()) {
                         read(selector, key, buffer);
                         keysIter.remove();
-                    } else {
-                        System.out.println("ELSE");
                     }
-               }
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -60,14 +61,20 @@ public class Server {
     }
 
     private void read(Selector selector, SelectionKey key, ByteBuffer buffer) throws IOException {
-        ((SocketChannel) key.channel()).read(buffer);
-        buffer.flip();
-        for (SelectionKey innerKey : selector.keys()) {
-            if (innerKey.channel().getClass().getSimpleName().startsWith("SocketChannelImpl") &&
-                    innerKey != key) {
-                ((SocketChannel) innerKey.channel()).write(buffer);
-                buffer.clear();
+        try {
+            ((SocketChannel) key.channel()).read(buffer);
+            buffer.flip();
+            for (SelectionKey innerKey : selector.keys()) {
+                if (innerKey.channel().getClass().getSimpleName().startsWith("SocketChannelImpl") //&&
+                       // innerKey != key)
+                ){
+                    ((SocketChannel) innerKey.channel()).write(buffer);
+                    buffer.clear();
+                }
             }
+        } catch (SocketException e) {
+            System.err.println(e.getMessage());
+            key.channel().close();
         }
     }
 }
