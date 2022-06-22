@@ -65,8 +65,7 @@ public class Server {
             ((SocketChannel) key.channel()).read(buffer);
             buffer.flip();
             for (SelectionKey innerKey : selector.keys()) {
-                if (innerKey.channel().getClass().getSimpleName().startsWith("SocketChannelImpl") //&&
-                       // innerKey != key)
+                if (innerKey.channel().getClass().getSimpleName().startsWith("SocketChannelImpl"))
                 ){
                     ((SocketChannel) innerKey.channel()).write(buffer);
                     buffer.clear();
