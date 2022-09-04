@@ -43,7 +43,6 @@ public class Server {
                         byte[] byteMessage = objectMapper.writeValueAsBytes(new Message("GOD", "Welcome to chat"));
                         channel.write(ByteBuffer.wrap(byteMessage));
                         channel.register(selector, SelectionKey.OP_READ);
-                        iter.remove();
                     } else if (key.isReadable()) {
                         SocketChannel client = (SocketChannel) key.channel();
                         try {
@@ -55,12 +54,12 @@ public class Server {
                                 }
                             }
                             buffer.clear();
-                            iter.remove();
                         } catch (SocketException e) {
                             client.close();
                         }
                     }
                 }
+                iter.remove();
             }
         } catch (IOException io) {
             io.printStackTrace();
