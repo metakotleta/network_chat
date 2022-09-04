@@ -1,3 +1,5 @@
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
@@ -11,68 +13,57 @@ import java.util.Set;
 
 public class Server {
 
-    public static final String ADRESS = "192.168.31.68";
+    public static final String ADRESS = "192.168.31.103";
     public static final int PORT = 46555;
     final ServerSocketChannel serverSocketChannel;
+    private ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private ByteBuffer buffer;
 
 
     public Server() throws IOException {
         serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.bind(new InetSocketAddress(ADRESS, PORT));
+        buffer = ByteBuffer.allocate(2048);
     }
 
-    public void connect() {
+    public void run() {
         try {
             Selector selector = Selector.open();
             serverSocketChannel.configureBlocking(false);
             serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
             while (true) {
-                int count = selector.select();
-                if (count == 0)
-                    continue;
-
-                Set<SelectionKey> sKeys = selector.selectedKeys();
-                Iterator<SelectionKey> keysIter = sKeys.iterator();
-                ByteBuffer buffer = ByteBuffer.allocate(1024);
-
-                while (keysIter.hasNext()) {
-                    SelectionKey key = keysIter.next();
+                selector.select();
+                Set<SelectionKey> keys = selector.selectedKeys();
+                Iterator<SelectionKey> iter = keys.iterator();
+                while (iter.hasNext()) {
+                    SelectionKey key = iter.next();
                     if (key.isAcceptable()) {
-                        accept(selector);
-                        keysIter.remove();
+                        SocketChannel channel = serverSocketChannel.accept();
+                        channel.configureBlocking(false);
+                        byte[] byteMessage = objectMapper.writeValueAsBytes(new Message("GOD", "Welcome to chat"));
+                        channel.write(ByteBuffer.wrap(byteMessage));
+                        channel.register(selector, SelectionKey.OP_READ);
+                        iter.remove();
                     } else if (key.isReadable()) {
-                        read(selector, key, buffer);
-                        keysIter.remove();
+                        SocketChannel client = (SocketChannel) key.channel();
+                        try {
+                            client.read(buffer);
+                            for (SelectionKey allKey : selector.keys()) {
+                                if (allKey.interestOps() == SelectionKey.OP_READ) {
+                                    SocketChannel writeChannel = (SocketChannel) allKey.channel();
+                                    writeChannel.write(ByteBuffer.wrap(buffer.array()));
+                                }
+                            }
+                            buffer.clear();
+                            iter.remove();
+                        } catch (SocketException e) {
+                            client.close();
+                        }
                     }
                 }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void accept(Selector selector) throws IOException {
-        SocketChannel channel = serverSocketChannel.accept();
-        System.out.println("ACCEPTED");
-        if (channel != null) {
-            channel.configureBlocking(false);
-            channel.register(selector, SelectionKey.OP_READ);
-        }
-    }
-
-    private void read(Selector selector, SelectionKey key, ByteBuffer buffer) throws IOException {
-        try {
-            ((SocketChannel) key.channel()).read(buffer);
-            buffer.flip();
-            for (SelectionKey innerKey : selector.keys()) {
-                if (innerKey.channel().getClass().getSimpleName().startsWith("SocketChannelImpl")) {
-                    ((SocketChannel) innerKey.channel()).write(buffer);
-                    buffer.clear();
-                }
-            }
-        } catch (SocketException e) {
-            System.err.println(e.getMessage());
-            key.channel().close();
+        } catch (IOException io) {
+            io.printStackTrace();
         }
     }
 }
